@@ -1,0 +1,59 @@
+/* stap probe of umad layer
+ * invoke with class value you want to trace
+ * ie for PM MAD's
+ * stap umad-trace.stp 0x4
+ */
+
+probe begin { printf ("%d\n", $1); }
+
+probe module("ib_umad").function("ib_umad_write") {
+
+	class = @cast(@cast($buf, "struct ib_user_mad")->data,
+			"struct ib_mad_hdr")->mgmt_class;
+
+	/* Check the class */
+	if (class == $1)
+	{
+		printf ("ib_umad_write   =>");
+		printf ("   class : 0x%x; ", class);
+		/*
+			@cast(@cast($buf, "struct ib_user_mad")->data,
+				"struct ib_mad_hdr")->mgmt_class);
+				*/
+		printf ("   method : 0x%x; ",
+			@cast(@cast($buf, "struct ib_user_mad")->data,
+				"struct ib_mad_hdr")->method);
+		printf ("   attribute : 0x%x; ",
+			@cast(@cast($buf, "struct ib_user_mad")->data,
+				"struct ib_mad_hdr")->attr_id);
+		printf ("   attr mod : 0x%x; ",
+			@cast(@cast($buf, "struct ib_user_mad")->data,
+				"struct ib_mad_hdr")->attr_mod);
+		printf (" => 0x%x",
+			@cast($buf, "struct ib_user_mad")->hdr->lid);
+		printf ("\n");
+	}
+}
+
+probe module("ib_umad").function("recv_handler") {
+	class = $mad_recv_wc->recv_buf->mad->mad_hdr->mgmt_class;
+	if (class == $1)
+	{
+		printf ("   recv_handler <=");
+		printf ("   class : 0x%x; ", class);
+		printf ("   method : 0x%x; ", $mad_recv_wc->recv_buf->mad->mad_hdr->method);
+		printf ("   attribute : 0x%x; ", $mad_recv_wc->recv_buf->mad->mad_hdr->attr_id);
+		printf ("   attr mod : 0x%x; ", $mad_recv_wc->recv_buf->mad->mad_hdr->attr_mod);
+		printf (" <= 0x%x (cpu endian)", $mad_recv_wc->wc->slid);
+		printf ("\n");
+	}
+}
+
+/*
+ * This is the next layer down from ib_umad_write
+ * However, This will be called for all class sends so it needs more work
+probe module("ib_mad").function("ib_post_send_mad") {
+	printf ("post send\n");
+}
+*/
+
